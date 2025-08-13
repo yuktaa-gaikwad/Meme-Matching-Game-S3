@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Memory Madness</title>   
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-header">
+        <h1 class="game-title">Meme Memory Madness</h1>
+        <p class="game-subtitle">Match the memes and become the ultimate meme lord!</p>
+    </div>
+
+    <div class="game-stats">
+        <div class="stat-box">
+            <div class="stat-label">Time</div>
+            <div class="stat-value timer" id="timer">60</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Score</div>
+            <div class="stat-value score" id="score">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Moves</div>
+            <div class="stat-value moves" id="moves">0</div>
+        </div>
+    </div>
+
+    <div class="game-board" id="gameBoard"></div>
+
+    <div class="controls">
+        <button class="btn btn-primary" onclick="startGame()">New Game</button>
+        <button class="btn btn-secondary" onclick="pauseGame()" id="pauseBtn">Pause</button>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <div class="game-over-content">
+            <h2 id="gameOverTitle">Game Over!</h2>
+            <div class="final-stats" id="finalStats"></div>
+            <button class="btn btn-primary" onclick="startGame()">Play Again</button>
+        </div>
+    </div>
+
+<!--Scripts-->
+    <script>
+        // Game state
+        let gameState = {
+            cards: [],
+            flippedCards: [],
+            matchedPairs: 0,
+            moves: 0,
+            score: 0,
+            timeLeft: 60,
+            gameTimer: null,
+            isPaused: false,
+            isGameActive: false
+        };
+
+        const memeImages = [
+            'Memes/bf.jpg',
+            'Memes/get_out.jpg',
+            'Memes/ghar-ghar.jpg',
+            'Memes/hot_itachi.jpg',
+            'Memes/ignore_me.jpg',
+            'Memes/nice_cat.jpg',
+            'Memes/only_friends.jpg',
+            'Memes/wet_cat.jpg'
+        ];
+
+        const currentMemes = memeImages;
+
+        function initializeGame() {
+            // Create pairs of cards
+            gameState.cards = [];
+            currentMemes.forEach((image, index) => {
+                gameState.cards.push({ id: index * 2, image, matched: false });
+                gameState.cards.push({ id: index * 2 + 1, image, matched: false });
+            });
+            
+            // Shuffle cards
+            shuffleArray(gameState.cards);
+            
+            // Reset game state
+            gameState.flippedCards = [];
+            gameState.matchedPairs = 0;
+            gameState.moves = 0;
+            gameState.score = 0;
+            gameState.timeLeft = 60;
+            gameState.isPaused = false;
+            gameState.isGameActive = true;
+            
+            renderBoard();
+            updateUI();
+            startTimer();
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = '';
+            
+            gameState.cards.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.dataset.index = index;
+                cardElement.onclick = () => flipCard(index);
+                
+                cardElement.innerHTML = `
+                    <div class="card-face card-back">🎭</div>
+                    <div class="card-face card-front">
+                        <img src="${card.image}" alt="Meme" loading="lazy">
+                    </div>
+                `;
+                
+                board.appendChild(cardElement);
+            });
+        }
+
+        function flipCard(index) {
+            if (!gameState.isGameActive || gameState.isPaused) return;
+            if (gameState.flippedCards.length >= 2) return;
+            if (gameState.flippedCards.includes(index)) return;
+            if (gameState.cards[index].matched) return;
+            
+            const cardElement = document.querySelector(`[data-index="${index}"]`);
+            cardElement.classList.add('flipped');
+            gameState.flippedCards.push(index);
+            
+            if (gameState.flippedCards.length === 2) {
+                gameState.moves++;
+                updateUI();
+                setTimeout(checkMatch, 800);
+            }
+        }
+
+        function checkMatch() {
+            const [first, second] = gameState.flippedCards;
+            const firstCard = gameState.cards[first];
+            const secondCard = gameState.cards[second];
+            
+            if (firstCard.image === secondCard.image) {
+                // Match found!
+                firstCard.matched = true;
+                secondCard.matched = true;
+                gameState.matchedPairs++;
+                gameState.score += Math.max(100 - gameState.moves * 2, 10);
+                
+                const firstElement = document.querySelector(`[data-index="${first}"]`);
+                const secondElement = document.querySelector(`[data-index="${second}"]`);
+                firstElement.classList.add('matched');
+                secondElement.classList.add('matched');
+                
+                // Check if game is won
+                if (gameState.matchedPairs === currentMemes.length) {
+                    setTimeout(() => endGame(true), 500);
+                }
+            } else {
+                // No match - flip back
+                setTimeout(() => {
+                    const firstElement = document.querySelector(`[data-index="${first}"]`);
+                    const secondElement = document.querySelector(`[data-index="${second}"]`);
+                    firstElement.classList.remove('flipped');
+                    secondElement.classList.remove('flipped');
+                }, 500);
+            }
+            
+            gameState.flippedCards = [];
+            updateUI();
+        }
+
+        function startTimer() {
+            if (gameState.gameTimer) {
+                clearInterval(gameState.gameTimer);
+            }
+            
+            gameState.gameTimer = setInterval(() => {
+                if (!gameState.isPaused && gameState.isGameActive) {
+                    gameState.timeLeft--;
+                    updateUI();
+                    
+                    if (gameState.timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateUI() {
+            document.getElementById('timer').textContent = gameState.timeLeft;
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('moves').textContent = gameState.moves;
+        }
+
+        function startGame() {
+            document.getElementById('gameOver').style.display = 'none';
+            initializeGame();
+        }
+
+        function pauseGame() {
+            const pauseBtn = document.getElementById('pauseBtn');
+            
+            if (gameState.isPaused) {
+                gameState.isPaused = false;
+                pauseBtn.textContent = 'Pause';
+            } else {
+                gameState.isPaused = true;
+                pauseBtn.textContent = 'Resume';
+            }
+        }
+
+        function endGame(won) {
+            gameState.isGameActive = false;
+            clearInterval(gameState.gameTimer);
+            
+            const gameOverTitle = document.getElementById('gameOverTitle');
+            const finalStats = document.getElementById('finalStats');
+            
+            if (won) {
+                gameOverTitle.textContent = 'Meme Master!';
+                gameOverTitle.style.color = '#4ecdc4';
+            } else {
+                gameOverTitle.textContent = 'Time\'s Up!';
+                gameOverTitle.style.color = '#ff6b6b';
+            }
+            
+            finalStats.innerHTML = `
+                <p>Final Score: <strong>${gameState.score}</strong></p>
+                <p>Moves: <strong>${gameState.moves}</strong></p>
+                <p>Pairs Found: <strong>${gameState.matchedPairs}/${currentMemes.length}</strong></p>
+                <p>Time: <strong>${60 - gameState.timeLeft}s</strong></p>
+            `;
+            
+            document.getElementById('gameOver').style.display = 'flex';
+        }
+
+        // Initialize game on page load
+        window.onload = () => {
+            initializeGame();
+        };
+
+        // Add keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                pauseGame();
+            } else if (e.code === 'KeyR') {
+                startGame();
+            }
+        });
+    </script>
+</body>
+</html>
